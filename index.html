@@ -27,7 +27,7 @@ input{min-width:200px}
 .hd .p{margin-left:auto;font-variant-numeric:tabular-nums}
 .hd .v{color:var(--mut);font-size:11px}
 .up{color:var(--up)}.dn{color:var(--dn)}
-.ch{height:230px}
+.ch{height:230px;position:relative}.dr{position:absolute;left:0;top:0;width:100%;height:100%;z-index:3;pointer-events:none}input[type=color]{min-width:0;width:34px;height:30px;padding:2px}.hint{color:var(--mut);font-size:12px}
 .msg{padding:40px;color:var(--mut);grid-column:1/-1;text-align:center}
 @media(max-width:700px){#grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ch{height:170px}}
 </style>
@@ -35,10 +35,18 @@ input{min-width:200px}
 <body>
 <header>
   <div class="row" id="filters"></div>
+  <div class="row" id="tools">
+    <button data-t="cursor" class="on">Cursor</button><button data-t="trend">Trend line</button><button data-t="h">Horizontal line</button>
+    <button data-t="rect">Rectangle</button><button data-t="fib">Fib retracement</button><button data-t="erase">Eraser</button>
+    <input type="color" id="col" value="#f0b429" title="Drawing color">
+    <button id="undo">Undo</button><button id="clr">Clear page</button>
+    <span class="hint">Pick Cursor to pan and zoom. Drawings are saved in this browser.</span>
+  </div>
   <div class="row">
     <select id="tf" title="Timeframe">
-      <option value="5">5m</option><option value="15" selected>15m</option><option value="60">1h</option>
-      <option value="240">4h</option><option value="D">1D</option>
+      <option value="1">1m</option><option value="3">3m</option><option value="5">5m</option><option value="15" selected>15m</option><option value="30">30m</option>
+      <option value="60">1h</option><option value="120">2h</option><option value="240">4h</option><option value="360">6h</option><option value="720">12h</option>
+      <option value="D">1D</option><option value="W">1W</option><option value="M">1M</option>
     </select>
     <select id="cols" title="Columns"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select>
     <select id="per" title="Charts per page"><option>8</option><option selected>12</option><option>20</option><option>30</option><option>42</option></select>
@@ -53,12 +61,19 @@ input{min-width:200px}
 <div id="grid"></div>
 
 <script>
-// Bybit's API has no AI / Meme tags, so edit these lists to taste (base coin names, without USDT).
+// Bybit's API has no sector tags (Layer-1, AI, Meme...), so these lists are mine. Edit to taste (base coin names, no USDT).
 const TAGS = {
   AI: "FET,RENDER,TAO,WLD,AI16Z,VIRTUAL,GRASS,ARKM,AIXBT,GRIFFAIN,ZEREBRO,NEAR,ICP,AKT,IO,PHB,AGIX,OCEAN,GOAT,SWARMS,COOKIE,KAITO,AVAAI,ARC,ACT,GRT,VANA,PRIME,TURBO,NOS,ATH,AIOZ,ALCH,MYX,0G".split(","),
+  "Layer-1": "BTC,ETH,SOL,BNB,ADA,AVAX,DOT,TRX,NEAR,APT,SUI,SEI,TON,ATOM,ALGO,FTM,S,HBAR,ICP,XRP,LTC,BCH,ETC,XLM,EOS,KAS,INJ,TIA,EGLD,FIL,XTZ,FLOW,KAVA,MINA,ROSE,ONE,ZIL,IOTA,XDC,BERA,MONAD,SONIC,HYPE,TAO,XMR,DASH,ZEC,CELO,QTUM,KAIA,VET,THETA,WAVES,ICX,NEO,ONT,CKB,CFX,GLMR,ASTR,IOTX,CORE,MOVE,IP,INIT,SEI,0G".split(","),
+  "Layer-2": "ARB,OP,MATIC,POL,STRK,IMX,MANTA,METIS,ZK,BLAST,MNT,TAIKO,SCR,ZRO,LRC,BOBA,CELR,SKL,ZETA,LINEA,MODE,ZKJ,ZKSYNC,ORDI,STX,RIF,DYM,ALT,PYTH,ETHFI,ZORA,ABSTRACT,SOON,BLAST,CTSI,OMG,HEMI".split(","),
+  Metaverse: "SAND,MANA,AXS,GALA,ENJ,APE,ILV,YGG,GMT,STEPN,ALICE,TLM,PIXEL,BEAM,RON,SLP,MC,VOXEL,HIGH,NFP,PORTAL,MAGIC,AGLD,DAR,UFO,WILD,GODS,BIGTIME,XAI,SUPER,YGG,WEMIX,CHR,RARE,LOOKS,ACE,PRIME,TOKEN,GHST,NAKA,BLUR,SLERF,ME,MBOX,ALICE".split(","),
+  DeFi: "UNI,AAVE,MKR,CRV,COMP,SNX,SUSHI,LDO,DYDX,GMX,1INCH,CAKE,BAL,YFI,RUNE,JUP,PENDLE,ENA,ETHFI,EIGEN,MORPHO,RAY,JTO,LQTY,SSV,FXS,CVX,ONDO,SYRUP,AEVO,DRIFT,HYPE,RPL,SPELL,KNC,ZRX,UMA,BADGER,ALPHA,CVC,REZ,COW,SUN,JST,LISTA,RESOLV,FLUID,USUAL,CETUS,KMNO,SAFE,PUFFER,STG,ACX,AUCTION,BANANA,MAV,GNS,PERP,BNT,OSMO,AGLD,SKY,EUL,SPK,WLFI,ASTER,AVNT,PLUME".split(","),
+  RWA: "ONDO,POLYX,CFG,MPL,TRU,PROPS,RIO,LINK,PLUME,OM,SYRUP,ENA,GFI,CPOOL,ACH,XDC,QNT,HBAR,XLM,ALGO,CHEX,DUSK,PENDLE,USUAL,LDO,CTC,REAL,SEKOIA,NEON,MPLX,PAXG,XAUT,BUIDL,SKY,STBL,MANTRA".split(","),
+  Infra: "LINK,GRT,FIL,AR,STORJ,RLC,BAND,API3,PYTH,TRB,RENDER,AKT,ANKR,LPT,THETA,THETAFUEL,POKT,HNT,IOTX,MASK,W,ZRO,AXL,LAYER,ATH,AIOZ,NKN,OCEAN,CTSI,GLM,SC,CHZ,JASMY,TWT,SAFE,ID,CYBER,SSV,BICO,ENS,RSR,FLUX,ARPA,CELR,OXT,WAL,SHELL,SQD,ACX,DEEP,ZEN,RVN,LSK,SYS,HOOK,PHA,MTL,STRAX,KDA".split(","),
+  FX: "EUR,GBP,JPY,AUD,CAD,CHF,NZD,CNH,EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,XAU,XAG,XAUT,PAXG".split(","),
   Meme: "DOGE,SHIB,PEPE,WIF,BONK,FLOKI,MEME,POPCAT,MEW,BRETT,TURBO,NEIRO,PNUT,MOODENG,FARTCOIN,TRUMP,PENGU,SPX,GIGA,MOG,BOME,CHILLGUY,FWOG,SLERF,1000PEPE,1000BONK,1000FLOKI,1000SHIB,1000000MOG,LADYS,TOSHI,BABYDOGE,PUMP,USELESS,BANANA,HIPPO,DOG,ACT,TST".split(",")
 };
-const FILTERS = ["Trending","Gainers","Losers","New","Premarket","Innovation","AI","Meme","All"];
+const FILTERS = ["Trending","Gainers","Losers","New","Premarket","Innovation","Layer-1","Layer-2","Metaverse","AI","DeFi","RWA","Infra","FX","Meme","All"];
 const API = "https://api.bybit.com/v5/market/";
 let inst = [], tick = {}, list = [], page = 0, filter = "Trending", cards = [], timer;
 const $ = id => document.getElementById(id);
@@ -109,8 +124,8 @@ function apply() {
     case "New": l = live.filter(i => now - +i.launchTime < 30 * 864e5).sort((a, b) => +b.launchTime - +a.launchTime); break;
     case "Premarket": l = inst.filter(i => i.isPreListing || i.status === "PreLaunch"); break;
     case "Innovation": l = live.filter(i => i.symbolType === "innovation").sort((a, b) => turn(b.symbol) - turn(a.symbol)); break;
-    case "AI": case "Meme": l = live.filter(i => TAGS[filter].includes(i.baseCoin) || TAGS[filter].includes(base(i))).sort((a, b) => turn(b.symbol) - turn(a.symbol)); break;
     default: l = live.slice().sort((a, b) => turn(b.symbol) - turn(a.symbol));
+      if (TAGS[filter]) l = l.filter(i => TAGS[filter].includes(i.baseCoin) || TAGS[filter].includes(base(i)));
   }
   if (q) {
     const terms = q.split(/[\s,]+/).filter(Boolean);
@@ -143,7 +158,10 @@ function render() {
       crosshair: { mode: 0 }
     });
     const series = chart.addCandlestickSeries({ upColor: "#2ebd85", downColor: "#f6465d", wickUpColor: "#2ebd85", wickDownColor: "#f6465d", borderVisible: false });
-    const c = { sym, el, chart, series }; cards.push(c);
+    const cv = document.createElement("canvas"); cv.className = "dr"; el.querySelector(".ch").appendChild(cv);
+    const c = { sym, el, chart, series, cv, data: [], drawings: store.get(sym), pending: null, dirty: true }; cards.push(c);
+    cv.style.pointerEvents = tool === "cursor" ? "none" : "auto"; cv.style.cursor = "crosshair";
+    cv.onclick = e => onDraw(c, e); cv.onmousemove = e => { if (c.pending) { const pt = pick(c, e); if (pt) c.pending.pts[1] = pt; } };
     head(c); load(c);
   });
 }
@@ -159,7 +177,7 @@ async function load(c) {
   try {
     const r = await get(`kline?category=linear&symbol=${c.sym}&interval=${$("tf").value}&limit=200`);
     const d = r.list.slice().reverse().map(k => ({ time: Math.floor(+k[0] / 1000), open: +k[1], high: +k[2], low: +k[3], close: +k[4] }));
-    c.series.setData(d); c.chart.timeScale().fitContent();
+    c.series.setData(d); c.data = d; c.chart.timeScale().fitContent();
   } catch (e) { c.el.querySelector(".ch").innerHTML = `<div class="msg">${e.message}</div>`; }
 }
 
@@ -179,6 +197,132 @@ $("q").oninput = () => { page = 0; apply(); };
 $("prev").onclick = () => { if (page > 0) { page--; render(); } };
 $("next").onclick = () => { if ((page + 1) * +$("per").value < list.length) { page++; render(); } };
 $("reload").onclick = loadMarket;
+
+/* ---------- Drawing tools ---------- */
+let tool = "cursor", last = [];
+const FIBS = [0, .236, .382, .5, .618, .786, 1];
+const store = {
+  get(s) { try { return JSON.parse(localStorage.getItem("bpw:" + s)) || []; } catch (e) { return []; } },
+  set(s, v) { try { localStorage.setItem("bpw:" + s, JSON.stringify(v)); } catch (e) {} }
+};
+// Points are stored as {t: time, p: price}, so drawings survive refreshes and timeframe changes.
+function step(d) { const n = d.length; return n > 1 ? d[n - 1].time - d[n - 2].time : 60; }
+function t2l(c, t) {
+  const d = c.data, n = d.length; if (!n) return 0;
+  if (t >= d[n - 1].time) return n - 1 + (t - d[n - 1].time) / step(d);
+  if (t <= d[0].time) return (t - d[0].time) / step(d);
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (d[m].time <= t) lo = m; else hi = m; }
+  return lo + (t - d[lo].time) / (d[hi].time - d[lo].time);
+}
+function l2t(c, l) {
+  const d = c.data, n = d.length; if (!n) return 0;
+  if (l >= n - 1) return d[n - 1].time + (l - (n - 1)) * step(d);
+  if (l <= 0) return d[0].time + l * step(d);
+  const i = Math.floor(l); return d[i].time + (l - i) * (d[i + 1].time - d[i].time);
+}
+function pick(c, e) {
+  const r = c.cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const l = c.chart.timeScale().coordinateToLogical(x), p = c.series.coordinateToPrice(y);
+  return l == null || p == null ? null : { t: l2t(c, l), p };
+}
+function xy(c, pt) {
+  const x = c.chart.timeScale().logicalToCoordinate(t2l(c, pt.t)), y = c.series.priceToCoordinate(pt.p);
+  return x == null || y == null ? null : { x, y };
+}
+function onDraw(c, e) {
+  if (tool === "cursor") return;
+  const r = c.cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  if (tool === "erase") return erase(c, x, y);
+  const pt = pick(c, e); if (!pt) return;
+  const col = $("col").value;
+  if (tool === "h") return add(c, { type: "h", color: col, pts: [pt] });
+  if (!c.pending) c.pending = { type: tool, color: col, pts: [pt, pt] };
+  else { const d = c.pending; d.pts[1] = pt; c.pending = null; add(c, d); }
+}
+function add(c, d) { c.drawings.push(d); store.set(c.sym, c.drawings); last.push(c); c.dirty = true; }
+function segDist(px, py, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, L = dx * dx + dy * dy;
+  let t = L ? ((px - a.x) * dx + (py - a.y) * dy) / L : 0; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - a.x - t * dx, py - a.y - t * dy);
+}
+function dist(c, d, px, py, w) {
+  if (d.type === "h") { const y = c.series.priceToCoordinate(d.pts[0].p); return y == null ? 1e9 : Math.abs(py - y); }
+  const a = xy(c, d.pts[0]), b = xy(c, d.pts[1]); if (!a || !b) return 1e9;
+  if (d.type === "trend") return segDist(px, py, a, b);
+  if (d.type === "rect") {
+    const x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x), y1 = Math.min(a.y, b.y), y2 = Math.max(a.y, b.y);
+    if (px >= x1 && px <= x2 && py >= y1 && py <= y2) return 0;
+    return 1e9;
+  }
+  let m = 1e9;
+  FIBS.forEach(f => { const y = b.y + (a.y - b.y) * f; m = Math.min(m, segDist(px, py, { x: Math.min(a.x, b.x), y }, { x: Math.max(a.x, b.x), y })); });
+  return m;
+}
+function erase(c, x, y) {
+  let best = -1, bd = 10;
+  c.drawings.forEach((d, i) => { const k = dist(c, d, x, y); if (k <= bd) { bd = k; best = i; } });
+  if (best >= 0) { c.drawings.splice(best, 1); store.set(c.sym, c.drawings); c.dirty = true; }
+}
+function paint(c, g, d, w) {
+  g.strokeStyle = g.fillStyle = d.color; g.lineWidth = 1.5; g.font = "10px sans-serif"; g.setLineDash([]);
+  if (d.type === "h") {
+    const y = c.series.priceToCoordinate(d.pts[0].p); if (y == null) return;
+    g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    g.fillText(fmt(d.pts[0].p), 4, y - 3); return;
+  }
+  const a = xy(c, d.pts[0]), b = xy(c, d.pts[1]); if (!a || !b) return;
+  if (d.type === "trend") { g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke(); }
+  else if (d.type === "rect") {
+    g.globalAlpha = .15; g.fillRect(a.x, a.y, b.x - a.x, b.y - a.y); g.globalAlpha = 1;
+    g.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+  } else if (d.type === "fib") {
+    const x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x);
+    FIBS.forEach(f => {
+      const y = b.y + (a.y - b.y) * f, pr = d.pts[1].p + (d.pts[0].p - d.pts[1].p) * f;
+      g.globalAlpha = f === 0 || f === 1 ? 1 : .7;
+      g.beginPath(); g.moveTo(x1, y); g.lineTo(x2, y); g.stroke();
+      g.fillText(f + "  " + fmt(pr), x1 + 3, y - 3);
+    });
+    g.globalAlpha = .5; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+    g.setLineDash([]); g.globalAlpha = 1;
+  }
+}
+function draw(c) {
+  const cv = c.cv, w = cv.clientWidth, h = cv.clientHeight, r = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(w * r) || cv.height !== Math.round(h * r)) { cv.width = Math.round(w * r); cv.height = Math.round(h * r); }
+  const g = cv.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, w, h);
+  if (!c.data.length) return;
+  c.drawings.concat(c.pending ? [c.pending] : []).forEach(d => paint(c, g, d, w));
+}
+(function loop() {
+  cards.forEach(c => { if (c.drawings.length || c.pending || c.dirty) { draw(c); c.dirty = false; } });
+  requestAnimationFrame(loop);
+})();
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll("#tools [data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  cards.forEach(c => { c.pending = null; c.dirty = true; c.cv.style.pointerEvents = t === "cursor" ? "none" : "auto"; });
+}
+function undo() {
+  cards.forEach(c => { if (c.pending) { c.pending = null; c.dirty = true; } });
+  while (last.length) {
+    const c = last.pop();
+    if (cards.includes(c) && c.drawings.length) { c.drawings.pop(); store.set(c.sym, c.drawings); c.dirty = true; break; }
+  }
+}
+$("tools").onclick = e => { const t = e.target.dataset.t; if (t) setTool(t); };
+$("undo").onclick = undo;
+$("clr").onclick = () => {
+  if (!confirm("Delete all drawings on the charts shown on this page?")) return;
+  cards.forEach(c => { c.drawings = []; store.set(c.sym, []); c.dirty = true; });
+};
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "Escape") setTool("cursor");
+  if ((e.ctrlKey || e.metaKey) && e.key === "z") { e.preventDefault(); undo(); }
+});
+
 loadMarket();
 timer = setInterval(refreshLive, 60000);
 </script>
